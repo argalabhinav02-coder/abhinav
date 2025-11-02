@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>VIVA — Exact Intro Recreation</title>
+    <style>
+        /* Strong reset */
+        *{box-sizing:border-box;margin:0;padding:0}
+        html,body{height:100%}
+        body{background:#000;color:#fff;font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial}
+
+        /* Stage */
+        .stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#000}
+
+        /* Base text that will be visually identical to the video */
+        .brand{
+            position:relative;font-weight:900;letter-spacing:-0.02em;line-height:1;
+            font-size:clamp(64px, 18vw, 360px);text-transform:uppercase;
+            -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+        }
+
+        /* three color layers using pseudo elements for perfect overlay */
+        .brand span{position:relative;display:inline-block}
+        .brand .core{color:#fff}
+        .brand .glowR{position:absolute;left:0;top:0;color:#ff2a3c;mix-blend-mode:screen;filter:blur(0.75px);opacity:0.98;transform:translate(-8px,-8px) scale(1.02)}
+        .brand .glowB{position:absolute;left:0;top:0;color:#0ac8ff;mix-blend-mode:screen;filter:blur(0.75px);opacity:0.98;transform:translate(8px,8px) scale(1.02)}
+
+        /* additive blend stripe that moves across for the 'slice' effect */
+        .wipe{
+            position:absolute;inset:0;pointer-events:none;display:flex;align-items:center;justify-content:center;z-index:12;
+        }
+        .strip{
+            position:relative;height:120%;width:14%;background:linear-gradient(180deg, rgba(255,255,255,0.15), rgba(255,255,255,0.28));
+            transform:skewX(-12deg) translateY(0);box-shadow:0 0 40px rgba(255,255,255,0.06) inset;border-radius:6px;
+        }
+
+        /* vignette & film grain */
+        .vignette:before{
+            content:'';position:absolute;inset:-10%;pointer-events:none;z-index:1;background:radial-gradient(ellipse at center, rgba(255,255,255,0) 35%, rgba(0,0,0,0.55) 100%)}
+
+        /* initial states for entrance */
+        .brand, .brand .glowR, .brand .glowB{opacity:0;transform-origin:center center}
+
+        /* keyframes closely matched to the original video timing */
+        @keyframes appear{
+            0%{opacity:0;transform:scale(0.78)}
+            55%{opacity:1;transform:scale(1.08)}
+            100%{opacity:1;transform:scale(1)}
+        }
+
+        @keyframes splitGoLeft{
+            0%{transform:translateX(0) scale(1)}
+            70%{transform:translateX(-32vw) scale(1.12)}
+            100%{transform:translateX(-36vw) scale(1.12)}
+        }
+        @keyframes splitGoRight{
+            0%{transform:translateX(0) scale(1)}
+            70%{transform:translateX(32vw) scale(1.12)}
+            100%{transform:translateX(36vw) scale(1.12)}
+        }
+
+        @keyframes slideStrip{
+            0%{transform:translateX(-120%) skewX(-12deg)}
+            45%{transform:translateX(8%) skewX(-12deg)}
+            100%{transform:translateX(120%) skewX(-12deg)}
+        }
+
+        /* light bloom pulse */
+        @keyframes bloom{
+            0%{filter:brightness(1) blur(0px)}
+            50%{filter:brightness(1.25) blur(1px)}
+            100%{filter:brightness(1) blur(0px)}
+        }
+
+        /* final vanish */
+        @keyframes vanish{
+            0%{opacity:1;transform:scale(1)}
+            100%{opacity:0;transform:scale(1.12)}
+        }
+
+        /* when .play is added we run the sequence */
+        .play .brand{animation:appear 850ms cubic-bezier(.2,.9,.3,1) 120ms both}
+        .play .brand .glowR{animation:appear 850ms cubic-bezier(.2,.9,.3,1) 200ms both}
+        .play .brand .glowB{animation:appear 850ms cubic-bezier(.2,.9,.3,1) 260ms both}
+
+        /* split copies for perfect motion match */
+        .copies{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+        .copies .left, .copies .center, .copies .right{position:absolute;display:flex;align-items:center;justify-content:center}
+        .copies .center{z-index:6}
+        .copies .left{z-index:5}
+        .copies .right{z-index:5}
+
+        /* left & right will move outward */
+        .play .copies .left{animation:splitGoLeft 1200ms cubic-bezier(.22,.9,.33,1) 720ms both}
+        .play .copies .right{animation:splitGoRight 1200ms cubic-bezier(.22,.9,.33,1) 720ms both}
+        .play .copies .center{animation:appear 1200ms cubic-bezier(.2,.9,.3,1) 720ms both}
+
+        /* each copy gets its own color */
+        .copies .left .txt{color:#ff2a3c;transform-origin:center}
+        .copies .center .txt{color:#ffffff}
+        .copies .right .txt{color:#0ac8ff}
+
+        /* strip wipe moves across to create the slice highlight */
+        .play .strip{animation:slideStrip 1200ms cubic-bezier(.22,.85,.33,1) 660ms both}
+
+        /* slight bloom on the entire stage for a flash */
+        .play .stage-overlay{animation:bloom 700ms ease 620ms both}
+
+        /* after a delay fade out (keep timing similar to your mp4) */
+        .play .stage-fade{animation:vanish 900ms ease 2200ms both}
+
+        /* small skip button style (hidden for exact replay but included) */
+        .skip{position:absolute;right:18px;top:18px;z-index:40;background:transparent;border:0;color:rgba(255,255,255,0.7);font-weight:600;cursor:pointer;padding:8px}
+
+        @media (max-width:520px){
+            .brand{font-size:clamp(48px,26vw,220px)}
+        }
+    </style>
+</head>
+<body>
+<div class="stage vignette" id="stageRoot">
+    <button class="skip" id="skipBtn">Skip</button>
+
+    <!-- central single element (core) -->
+    <div class="brand" aria-hidden="true">
+        <span class="core">VIVA</span>
+        <span class="glowR">VIVA</span>
+        <span class="glowB">VIVA</span>
+    </div>
+
+    <!-- Copies that move apart to mimic the split and colored displacement -->
+    <div class="copies" aria-hidden="true">
+        <div class="left" style="transform:translateX(0)"><div class="txt" style="font-weight:900;font-size:clamp(64px,18vw,360px);">VIVA</div></div>
+        <div class="center"><div class="txt" style="font-weight:900;font-size:clamp(64px,18vw,360px);">VIVA</div></div>
+        <div class="right" style="transform:translateX(0)"><div class="txt" style="font-weight:900;font-size:clamp(64px,18vw,360px);">VIVA</div></div>
+    </div>
+
+    <!-- sliding strip for highlight / sweep effect -->
+    <div class="wipe" aria-hidden="true">
+        <div class="strip"></div>
+    </div>
+
+    <!-- overlay used for a light bloom during peak frame -->
+    <div class="stage-overlay" style="position:absolute;inset:0;pointer-events:none;mix-blend-mode:screen;opacity:0.06;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0));z-index:8"></div>
+
+    <!-- fade container applied at the end to remove intro -->
+    <div class="stage-fade" style="position:absolute;inset:0;pointer-events:none;z-index:50"></div>
+</div>
+
+<script>
+    // Sequence controller: aims to match the video's timing precisely.
+    (function(){
+        const root = document.getElementById('stageRoot');
+        const skip = document.getElementById('skipBtn');
+
+        // start animation
+        function play(){
+            // add class to fire CSS keyframes
+            root.classList.add('play');
+            // after the full sequence length, remove the stage
+            setTimeout(()=>{
+                root.style.display='none';
+            }, 3000); // matches our CSS vanish timings ~2.9s
+        }
+
+        skip.addEventListener('click', ()=>{
+            root.style.display='none';
+        });
+
+        // little safety to ensure fonts/layout are ready
+        window.addEventListener('load', ()=>{
+            // small timeout to better match original timing
+            setTimeout(play, 120);
+        });
+
+        // also allow keyboard skip
+        document.addEventListener('keydown', (e)=>{
+            if(e.code === 'Space' || e.code === 'Enter') skip.click();
+        });
+    })();
+</script>
+</body>
+</html>

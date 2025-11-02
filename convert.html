@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Image → PDF Converter</title>
+  <style>
+    :root{font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif}
+    body{margin:0;background:#f6f8fa;color:#0f172a;display:flex;min-height:100vh;align-items:center;justify-content:center}
+    .wrap{width:980px;max-width:96%;background:white;border-radius:12px;padding:18px;box-shadow:0 6px 30px rgba(15,23,42,.08)}
+    h1{font-size:20px;margin:0 0 12px}
+    .grid{display:grid;grid-template-columns:1fr 360px;gap:16px}
+    .card{background:#fbfcfd;border-radius:8px;padding:12px;border:1px solid #e6eef6}
+    label{display:block;font-size:13px;margin-bottom:6px}
+    input[type=file]{width:100%}
+    .row{display:flex;gap:8px;align-items:center}
+    select,input[type=number],input[type=text]{width:100%;padding:8px;border-radius:6px;border:1px solid #d6e3f2}
+    button{padding:10px 12px;border-radius:8px;border:0;background:#0b5fff;color:white;cursor:pointer}
+    .muted{font-size:12px;color:#475569}
+    .preview{display:flex;flex-direction:column;gap:8px}
+    .thumb{height:70px;width:70px;background:#eef2ff;border-radius:6px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+    .thumb img{max-width:100%;max-height:100%}
+    .list{display:grid;gap:8px;max-height:320px;overflow:auto;padding-right:6px}
+    footer{margin-top:12px;font-size:12px;color:#64748b}
+    .settings{display:grid;gap:8px}
+    .center{display:flex;align-items:center;justify-content:center}
+    .control-row{display:flex;gap:8px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Image → PDF Converter (client-side)</h1>
+    <div class="grid">
+      <div>
+        <div class="card">
+          <label for="files">Choose images (jpg, jpeg, png) — multiple allowed</label>
+          <input id="files" type="file" accept="image/jpeg,image/png" multiple />
+          <p class="muted">Drag & drop files onto the file selector or use the picker. Images are processed locally in your browser.</p>
+        </div>
+
+        <div class="card" style="margin-top:12px;">
+          <div class="settings">
+            <div>
+              <label>Page size</label>
+              <select id="pageSize">
+                <option value="a4">A4 (210 × 297 mm)</option>
+                <option value="letter">Letter (216 × 279 mm)</option>
+                <option value="a3">A3 (297 × 420 mm)</option>
+                <option value="custom">Custom (mm)</option>
+              </select>
+            </div>
+
+            <div id="customSizeRow" style="display:none;grid-template-columns:1fr 1fr;gap:6px;">
+              <label style="margin-top:8px">Custom width (mm)</label>
+              <input id="customW" type="number" min="10" value="210" />
+              <label style="margin-top:6px">Custom height (mm)</label>
+              <input id="customH" type="number" min="10" value="297" />
+            </div>
+
+            <div class="control-row">
+              <div style="flex:1">
+                <label>Orientation</label>
+                <select id="orientation"><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select>
+              </div>
+              <div style="width:120px">
+                <label>Images per page</label>
+                <select id="imagesPerPage"><option>1</option><option>2</option><option>4</option></select>
+              </div>
+            </div>
+
+            <div class="control-row">
+              <div style="flex:1">
+                <label>Image fit</label>
+                <select id="fit"><option value="contain">Contain (maintain aspect)</option><option value="cover">Cover (crop to fill)</option></select>
+              </div>
+              <div style="width:120px">
+                <label>Margin (mm)</label>
+                <input id="margin" type="number" min="0" value="10" />
+              </div>
+            </div>
+
+            <div>
+              <label>Output filename</label>
+              <input id="filename" type="text" value="images.pdf" />
+            </div>
+
+            <div class="control-row">
+              <div style="flex:1">
+                <label>Image quality scale (1-3)</label>
+                <input id="scale" type="number" min="1" max="3" value="1" />
+              </div>
+              <div style="width:160px">
+                <label>Background (optional)</label>
+                <input id="bg" type="text" placeholder="#ffffff or blank" />
+              </div>
+            </div>
+
+            <div class="center" style="margin-top:8px">
+              <button id="generate">Generate PDF</button>
+              <button id="clear" style="margin-left:8px;background:#e2e8f0;color:#0f172a">Clear</button>
+            </div>
+          </div>
+        </div>
+
+        <footer>
+          Tip: Large images produce big PDFs. Use the scale setting to reduce output file size.
+        </footer>
+      </div>
+
+      <div>
+        <div class="card">
+          <h3 style="margin:0 0 8px">Preview / File order</h3>
+          <div class="muted" style="margin-bottom:8px">Drag to reorder images (click and drag), or remove with the trash icon.</div>
+          <div id="list" class="list"></div>
+        </div>
+
+        <div class="card" style="margin-top:12px;">
+          <h3 style="margin:0 0 8px">Status</h3>
+          <div id="status" class="muted">No files selected</div>
+          <div style="margin-top:8px" id="stats"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <script>
+    // Single-file, client-side Image → PDF converter
+    // Uses jsPDF (UMD build loaded above)
+
+    const { jsPDF } = window.jspdf;
+    const filesInput = document.getElementById('files');
+    const list = document.getElementById('list');
+    const status = document.getElementById('status');
+    const stats = document.getElementById('stats');
+    const generateBtn = document.getElementById('generate');
+    const clearBtn = document.getElementById('clear');
+
+    const pageSizeSelect = document.getElementById('pageSize');
+    const customSizeRow = document.getElementById('customSizeRow');
+    const customW = document.getElementById('customW');
+    const customH = document.getElementById('customH');
+
+    const orientationEl = document.getElementById('orientation');
+    const marginEl = document.getElementById('margin');
+    const fitEl = document.getElementById('fit');
+    const filenameEl = document.getElementById('filename');
+    const bgEl = document.getElementById('bg');
+    const imagesPerPageEl = document.getElementById('imagesPerPage');
+    const scaleEl = document.getElementById('scale');
+
+    let fileItems = [];
+
+    function updateStatus() {
+      status.textContent = fileItems.length ? `${fileItems.length} file(s) ready` : 'No files selected';
+      stats.innerHTML = fileItems.length ? `<div class="muted">First: ${fileItems[0].name}</div>` : '';
+    }
+
+    function readFileToDataURL(file) {
+      return new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result);
+        r.onerror = rej;
+        r.readAsDataURL(file);
+      });
+    }
+
+    function addListItem(file, dataURL) {
+      const el = document.createElement('div');
+      el.className = 'row';
+      el.style.justifyContent = 'space-between';
+      el.draggable = true;
+      el.innerHTML = `
+        <div style="display:flex;gap:8px;align-items:center">
+          <div class="thumb"><img src="${dataURL}" alt="thumb"/></div>
+          <div style="min-width:0">
+            <div style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:220px">${file.name}</div>
+            <div class="muted" style="font-size:12px">${(file.size/1024/1024).toFixed(2)} MB</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="remove" title="Remove" style="background:#fee2e2;color:#991b1b;padding:6px;border-radius:6px;border:0">✕</button>
+        </div>
+      `;
+
+      // remove handler
+      el.querySelector('.remove').addEventListener('click', () => {
+        const idx = fileItems.findIndex(it => it.el === el);
+        if (idx >= 0) fileItems.splice(idx,1);
+        el.remove();
+        updateStatus();
+      });
+
+      // drag handlers for reordering
+      el.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', 'drag'); el.classList.add('dragging'); dragSrc = el; });
+      el.addEventListener('dragend', () => { el.classList.remove('dragging'); dragSrc = null; });
+      el.addEventListener('dragover', (e) => { e.preventDefault(); });
+      el.addEventListener('drop', (e) => {
+        e.preventDefault();
+        if (!dragSrc) return;
+        if (dragSrc === el) return;
+        // swap nodes
+        const srcIdx = fileItems.findIndex(it => it.el === dragSrc);
+        const dstIdx = fileItems.findIndex(it => it.el === el);
+        if (srcIdx < 0 || dstIdx < 0) return;
+        const tmp = fileItems[srcIdx];
+        fileItems.splice(srcIdx,1);
+        fileItems.splice(dstIdx,0,tmp);
+        // re-render list
+        renderList();
+      });
+
+      list.appendChild(el);
+      return el;
+    }
+
+    function renderList() {
+      list.innerHTML = '';
+      fileItems.forEach(it => list.appendChild(it.el));
+      updateStatus();
+    }
+
+    filesInput.addEventListener('change', async (e)=>{
+      const files = Array.from(e.target.files || []);
+      for (const file of files) {
+        if (!file.type.startsWith('image/')) continue;
+        const dataURL = await readFileToDataURL(file);
+        const el = addListItem(file,dataURL);
+        fileItems.push({file, dataURL, el});
+      }
+      renderList();
+    });
+
+    pageSizeSelect.addEventListener('change', ()=>{
+      customSizeRow.style.display = pageSizeSelect.value === 'custom' ? 'grid' : 'none';
+    });
+
+    clearBtn.addEventListener('click', ()=>{
+      fileItems = [];
+      renderList();
+      filesInput.value = '';
+    });
+
+    function mmToPt(mm){ return mm * 2.834645669; } // 1 mm = 2.834645669 pt (approx)
+
+    function getPageDims() {
+      const size = pageSizeSelect.value;
+      let w = 210, h = 297; // A4 default mm
+      if (size === 'letter') { w = 216; h = 279; }
+      if (size === 'a3') { w = 297; h = 420; }
+      if (size === 'custom') { w = Number(customW.value) || 210; h = Number(customH.value) || 297; }
+      const orient = orientationEl.value;
+      if (orient === 'landscape') [w,h] = [h,w];
+      return {w,h};
+    }
+
+    async function generatePDF(){
+      if (!fileItems.length){ alert('No images selected'); return; }
+      generateBtn.disabled = true; generateBtn.textContent = 'Building...';
+      try{
+        const {w:hmm, h:dummy} = getPageDims(); // bug-avoid: we'll compute both
+      }catch(e){/*ignore*/}
+
+      const {w:pageWmm, h:pageHmm} = getPageDims();
+      const margin = Number(marginEl.value) || 10;
+      const imagesPerPage = Number(imagesPerPageEl.value) || 1;
+      const fit = fitEl.value;
+      const scale = Number(scaleEl.value) || 1;
+      const bg = bgEl.value.trim() || null;
+
+      // jsPDF expects units: mm (we'll create with mm units)
+      const pdf = new jsPDF({ unit:'mm', format:[ pageWmm, pageHmm ], orientation: orientationEl.value });
+      // We'll place N images per page in a grid
+      const cols = imagesPerPage === 1 ? 1 : imagesPerPage === 2 ? 1 : 2; // 2-per-page -> 1 col x2 rows; 4 -> 2x2
+      const rows = imagesPerPage === 1 ? 1 : imagesPerPage === 2 ? 2 : 2;
+      const innerW = (pageWmm - margin*2) / cols;
+      const innerH = (pageHmm - margin*2) / rows;
+
+      // helper to draw image into page
+      function placeImageOnPage(imgWpx, imgHpx, boxWmm, boxHmm){
+        // convert px to mm using arbitrary pixel density assumption; we'll compute scale by aspect ratio
+        const imgRatio = imgWpx / imgHpx;
+        const boxRatio = boxWmm / boxHmm;
+        let drawW = boxWmm, drawH = boxHmm;
+        if (fit === 'contain'){
+          if (imgRatio > boxRatio){ drawW = boxWmm; drawH = boxWmm / imgRatio; }
+          else { drawH = boxHmm; drawW = boxHmm * imgRatio; }
+        } else { // cover
+          if (imgRatio > boxRatio){ drawH = boxHmm; drawW = boxHmm * imgRatio; }
+          else { drawW = boxWmm; drawH = boxWmm / imgRatio; }
+        }
+        return {drawW, drawH};
+      }
+
+      // iterate images
+      for (let i=0;i<fileItems.length;i++){
+        const it = fileItems[i];
+        // create image object to read dimensions
+        const img = await new Promise((res,rej)=>{
+          const iEl = new Image();
+          iEl.onload = () => res(iEl);
+          iEl.onerror = rej;
+          iEl.src = it.dataURL;
+        });
+
+        // compute position in grid
+        const pageIndex = Math.floor(i / imagesPerPage);
+        const indexInPage = i % imagesPerPage;
+        const col = indexInPage % cols;
+        const row = Math.floor(indexInPage / cols);
+
+        // add new page when needed
+        if (i>0 && indexInPage===0) pdf.addPage([pageWmm,pageHmm], orientationEl.value);
+
+        // compute box for this slot
+        const boxX = margin + col * innerW;
+        const boxY = margin + row * innerH;
+        const boxW = innerW;
+        const boxH = innerH;
+
+        // decide draw size
+        const {drawW, drawH} = placeImageOnPage(img.width * scale, img.height * scale, boxW, boxH);
+        const centerX = boxX + (boxW - drawW) / 2;
+        const centerY = boxY + (boxH - drawH) / 2;
+
+        // optional background
+        if (bg) {
+          pdf.setFillColor(bg);
+          pdf.rect(boxX, boxY, boxW, boxH, 'F');
+        }
+
+        // add image
+        // jsPDF addImage: dataURL, format, x, y, w, h
+        // detect format
+        let fmt = 'JPEG';
+        if (it.dataURL.indexOf('image/png')>=0) fmt = 'PNG';
+        pdf.addImage(it.dataURL, fmt, centerX, centerY, drawW, drawH);
+      }
+
+      // output
+      const outName = filenameEl.value.trim() || 'images.pdf';
+      pdf.save(outName);
+
+      status.textContent = 'Done — PDF downloaded';
+    }
+
+    generateBtn.addEventListener('click', async ()=>{
+      try{
+        await generatePDF();
+      }catch(err){
+        console.error(err);
+        alert('Error while generating PDF: '+err.message);
+      }finally{
+        generateBtn.disabled = false; generateBtn.textContent = 'Generate PDF';
+      }
+    });
+
+  </script>
+</body>
+</html>
