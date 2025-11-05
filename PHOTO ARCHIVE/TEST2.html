@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Photo Memories</title>
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+
+body {
+    margin: 0;
+    height: 100vh;
+    font-family: 'Inter', sans-serif;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    color: white;
+    background: black;
+}
+
+/* 🖼️ Background image motion effect */
+.motion-bg {
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    background: url("background.avif") center/cover no-repeat;
+    filter: brightness(0.7);
+    animation: zoomMotion 20s ease-in-out infinite alternate;
+}
+
+@keyframes zoomMotion {
+    0% { transform: scale(1); }
+    100% { transform: scale(1.05); }
+}
+
+h1 {
+    font-size: 2.2em;
+    letter-spacing: 1px;
+    margin-bottom: 20px;
+    text-shadow: 0 2px 8px rgba(255,255,255,0.3);
+    animation: fadeDown 1s ease forwards;
+}
+
+@keyframes fadeDown {
+    from {opacity: 0; transform: translateY(-20px);}
+    to {opacity: 1; transform: translateY(0);}
+}
+
+.glass-card {
+    background: rgba(255,255,255,0.08);
+    backdrop-filter: blur(20px);
+    border-radius: 20px;
+    padding: 25px 35px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+    text-align: center;
+    animation: fadeUp 1.2s ease forwards;
+}
+
+@keyframes fadeUp {
+    from {opacity: 0; transform: translateY(30px);}
+    to {opacity: 1; transform: translateY(0);}
+}
+
+select {
+    margin: 10px;
+    padding: 12px 20px;
+    border-radius: 12px;
+    border: none;
+    background: rgba(255,255,255,0.2);
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+    outline: none;
+    transition: background 0.3s, transform 0.2s;
+}
+
+select:hover {
+    background: rgba(255,255,255,0.3);
+    transform: scale(1.05);
+}
+
+option { color: black; }
+
+#gallery {
+    margin-top: 25px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 20px;
+    width: 90%;
+    max-width: 900px;
+    animation: fadeUp 1.2s ease;
+}
+
+#gallery img {
+    width: 100%;
+    border-radius: 16px;
+    height: 150px;
+    object-fit: cover;
+    cursor: pointer;
+    transition: transform 0.4s ease, box-shadow 0.4s ease;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
+
+#gallery img:hover {
+    transform: scale(1.05);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.5);
+}
+
+/* Fullscreen slideshow */
+#slideshow {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.96);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 999;
+    overflow: hidden;
+}
+
+#slideshow img {
+    position: absolute;
+    max-width: 90%;
+    max-height: 85%;
+    border-radius: 20px;
+    opacity: 0;
+    transition: opacity 1s ease-in-out;
+    box-shadow: 0 10px 40px rgba(255,255,255,0.15);
+}
+
+#closeBtn {
+    position: absolute;
+    top: 20px;
+    right: 35px;
+    font-size: 28px;
+    background: rgba(255,255,255,0.1);
+    padding: 10px 16px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background 0.3s;
+    z-index: 1000;
+}
+
+#closeBtn:hover {
+    background: rgba(255,255,255,0.3);
+}
+</style>
+</head>
+
+<body>
+    <div class="motion-bg" id="motionBg"></div>
+
+    <h1>📸 Memories Timeline</h1>
+    <div class="glass-card">
+        <select id="yearSelect">
+            <option value="">-- Choose Year --</option>
+            <option value="2023">2023</option>
+            <option value="2024">2024</option>
+        </select>
+
+        <select id="eventSelect" style="display:none;">
+            <option value="">-- Choose Event --</option>
+        </select>
+    </div>
+
+    <div id="gallery"></div>
+
+    <!-- Fullscreen Slideshow -->
+    <div id="slideshow">
+        <span id="closeBtn">✖</span>
+    </div>
+
+<script>
+const photoData = {
+    "2023": {
+        "Holi": [
+            "images/2023/Holi/1.jpg",
+            "images/2023/Holi/2.jpg",
+            "images/2023/Holi/3.jpg"
+        ],
+        "Diwali": [
+            "images/2023/Diwali/1.jpg",
+            "images/2023/Diwali/2.jpg",
+            "images/2023/Diwali/3.jpg"
+        ]
+    },
+    "2024": {
+        "Birthday": [
+            "images/2024/Birthday/1.jpg",
+            "images/2024/Birthday/2.jpg",
+            "images/2024/Birthday/3.jpg"
+        ],
+        "Trip": [
+            "images/2024/Trip/1.jpg",
+            "images/2024/Trip/2.jpg",
+            "images/2024/Trip/3.jpg"
+        ]
+    }
+};
+
+const yearSelect = document.getElementById('yearSelect');
+const eventSelect = document.getElementById('eventSelect');
+const gallery = document.getElementById('gallery');
+const slideshow = document.getElementById('slideshow');
+const closeBtn = document.getElementById('closeBtn');
+
+let currentImages = [];
+let slideIndex = 0;
+let slideInterval;
+let currentSlide, nextSlide;
+
+yearSelect.addEventListener('change', () => {
+    const year = yearSelect.value;
+    eventSelect.innerHTML = '<option value="">-- Choose Event --</option>';
+    gallery.innerHTML = '';
+    if (year && photoData[year]) {
+        Object.keys(photoData[year]).forEach(event => {
+            const option = document.createElement('option');
+            option.value = event;
+            option.textContent = event;
+            eventSelect.appendChild(option);
+        });
+        eventSelect.style.display = 'inline-block';
+    } else {
+        eventSelect.style.display = 'none';
+    }
+});
+
+eventSelect.addEventListener('change', () => {
+    const year = yearSelect.value;
+    const event = eventSelect.value;
+    gallery.innerHTML = '';
+
+    if (year && event && photoData[year][event]) {
+        currentImages = photoData[year][event];
+        currentImages.forEach(src => {
+            const img = document.createElement('img');
+            img.src = src;
+            img.addEventListener('click', () => startSlideshow());
+            gallery.appendChild(img);
+        });
+    }
+});
+
+function startSlideshow() {
+    slideshow.style.display = 'flex';
+    slideshow.innerHTML = '<span id="closeBtn">✖</span>';
+    currentSlide = document.createElement('img');
+    currentSlide.src = currentImages[0];
+    currentSlide.style.opacity = 1;
+    slideshow.appendChild(currentSlide);
+
+    document.getElementById('closeBtn').addEventListener('click', stopSlideshow);
+
+    slideIndex = 0;
+    slideInterval = setInterval(nextSlideSmooth, 2000);
+}
+
+function nextSlideSmooth(nextIndex = null) {
+    if (nextIndex !== null) {
+        slideIndex = nextIndex;
+    } else {
+        slideIndex = (slideIndex + 1) % currentImages.length;
+    }
+
+    nextSlide = document.createElement('img');
+    nextSlide.src = currentImages[slideIndex];
+    nextSlide.style.opacity = 0;
+    slideshow.appendChild(nextSlide);
+
+    requestAnimationFrame(() => {
+        nextSlide.style.opacity = 1;
+        currentSlide.style.opacity = 0;
+    });
+
+    setTimeout(() => {
+        slideshow.removeChild(currentSlide);
+        currentSlide = nextSlide;
+    }, 1000);
+}
+
+function stopSlideshow() {
+    clearInterval(slideInterval);
+    slideshow.style.display = 'none';
+    slideshow.innerHTML = '<span id="closeBtn">✖</span>';
+}
+
+document.addEventListener('keydown', (e) => {
+    if (slideshow.style.display === 'flex') {
+        if (e.key === 'ArrowRight') {
+            clearInterval(slideInterval);
+            nextSlideSmooth();
+        } else if (e.key === 'ArrowLeft') {
+            clearInterval(slideInterval);
+            slideIndex = (slideIndex - 1 + currentImages.length) % currentImages.length;
+            nextSlideSmooth(slideIndex);
+        } else if (e.key === 'Escape') {
+            stopSlideshow();
+        }
+    }
+});
+</script>
+</body>
+</html>
