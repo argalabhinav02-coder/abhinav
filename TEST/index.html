@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ABHINAV</title>
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+
+body {
+    margin: 0;
+    height: 100vh;
+    font-family: 'Inter', sans-serif;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    color: white;
+    background: black;
+}
+
+/* Motion Background */
+.motion-bg {
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    background: url("background.avif") center/cover no-repeat;
+    filter: brightness(0.7);
+    animation: zoomMotion 20s ease-in-out infinite alternate;
+}
+
+@keyframes zoomMotion {
+    0% { transform: scale(1); }
+    100% { transform: scale(1.05); }
+}
+
+h1 {
+    font-size: 2.2em;
+    letter-spacing: 1px;
+    margin-bottom: 20px;
+    text-shadow: 0 2px 8px rgba(255,255,255,0.3);
+}
+
+.glass-card {
+    background: rgba(255,255,255,0.08);
+    backdrop-filter: blur(20px);
+    border-radius: 20px;
+    padding: 25px 35px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+    text-align: center;
+}
+
+select {
+    margin: 10px;
+    padding: 12px 20px;
+    border-radius: 12px;
+    border: none;
+    background: rgba(0,0,0,0.6); /* darker background */
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+
+#gallery {
+    margin-top: 25px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 20px;
+    width: 90%;
+    max-width: 900px;
+}
+
+#gallery img {
+    width: 100%;
+    border-radius: 16px;
+    height: 150px;
+    object-fit: cover;
+    cursor: pointer;
+}
+
+/* Video Cards */
+.container {
+    display: flex;
+    gap: 25px;
+    margin-top: 25px;
+}
+.card {
+    width: 300px;
+    height: 170px;
+    background: #111;
+    border-radius: 18px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: 0.3s;
+    box-shadow: 0 0 15px rgba(255,255,255,0.2);
+}
+.card:hover {
+    transform: scale(1.08);
+}
+.thumbnail {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.title {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    background: rgba(0,0,0,0.6);
+    padding: 6px 10px;
+    font-size: 14px;
+    text-align: center;
+}
+
+/* Video Overlay */
+.overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.9);
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+}
+.overlay iframe {
+    width: 80%;
+    height: 70vh;
+}
+.closeBtn {
+    position: absolute;
+    top: 20px;
+    right: 30px;
+    font-size: 40px;
+    cursor: pointer;
+}
+</style>
+</head>
+
+<body>
+<div class="motion-bg"></div>
+
+<h1>📸 Memories Timeline</h1>
+
+<div class="glass-card">
+    <select id="yearSelect">
+        <option value="">-- Choose Year --</option>
+        <option value="2023">2023</option>
+        <option value="2024">2024</option>
+    </select>
+
+    <select id="eventSelect" style="display:none;">
+        <option value="">-- Choose Event --</option>
+    </select>
+</div>
+
+<div id="gallery"></div>
+<div id="videoSection"></div>
+
+<!-- YouTube Overlay -->
+<div class="overlay" id="playerOverlay">
+    <span class="closeBtn" onclick="closeVideo()">×</span>
+    <iframe id="videoFrame" allowfullscreen></iframe>
+</div>
+
+<script>
+const photoData = {
+    "2023": {
+        "Holi": ["images/2023/Holi/1.jpg"],
+        "Diwali": ["images/2023/Diwali/1.jpg"]
+    },
+    "2024": {
+        "Birthday": ["images/2024/Birthday/1.jpg"],
+        "Trip": ["images/2024/Trip/1.jpg"],
+        "Ramayan": "VIDEOS"
+    }
+};
+
+const yearSelect = document.getElementById('yearSelect');
+const eventSelect = document.getElementById('eventSelect');
+const gallery = document.getElementById('gallery');
+const videoSection = document.getElementById('videoSection');
+
+yearSelect.addEventListener('change', () => {
+    eventSelect.innerHTML = '<option value="">-- Choose Event --</option>';
+    gallery.innerHTML = '';
+    videoSection.innerHTML = '';
+    if (photoData[yearSelect.value]) {
+        Object.keys(photoData[yearSelect.value]).forEach(event => {
+            const option = document.createElement('option');
+            option.value = event;
+            option.textContent = event;
+            eventSelect.appendChild(option);
+        });
+        eventSelect.style.display = 'inline-block';
+    }
+});
+
+eventSelect.addEventListener('change', () => {
+    gallery.innerHTML = '';
+    videoSection.innerHTML = '';
+
+    if (eventSelect.value === "Ramayan") {
+        videoSection.innerHTML = `
+        <div class="container">
+            <div class="card" onclick="openVideo('RG3Hqth0Eus')">
+                <img src="https://img.youtube.com/vi/RG3Hqth0Eus/maxresdefault.jpg" class="thumbnail">
+                
+            </div>
+            <div class="card" onclick="openVideo('UdLXlTC-bFY')">
+                <img src="https://img.youtube.com/vi/UdLXlTC-bFY/maxresdefault.jpg" class="thumbnail">
+                
+            </div>
+            <div class="card" onclick="openVideo('kHi1S_W4RQw')">
+                <img src="https://img.youtube.com/vi/kHi1S_W4RQw/maxresdefault.jpg" class="thumbnail">
+                
+            </div>
+        </div>`;
+    }
+});
+
+function openVideo(id) {
+    document.getElementById("playerOverlay").style.display = "flex";
+    document.getElementById("videoFrame").src =
+        "https://www.youtube.com/embed/" + id + "?autoplay=1&rel=0&modestbranding=1";
+}
+function closeVideo() {
+    document.getElementById("playerOverlay").style.display = "none";
+    document.getElementById("videoFrame").src = "";
+}
+</script>
+</body>
+</html>
